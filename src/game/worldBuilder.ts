@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { PowerUpType } from "./types";
 
 export const LANE_WIDTH = 2.4;
@@ -7,11 +8,11 @@ export const LANES = [-1, 0, 1] as const;
 export interface RunnerRig {
   root: THREE.Group;
   bodyGroup: THREE.Group;
-  head: THREE.Mesh;
-  leftArm: THREE.Mesh;
-  rightArm: THREE.Mesh;
-  leftLeg: THREE.Mesh;
-  rightLeg: THREE.Mesh;
+  headGroup: THREE.Group;
+  leftArmPivot: THREE.Group;
+  rightArmPivot: THREE.Group;
+  leftLegPivot: THREE.Group;
+  rightLegPivot: THREE.Group;
   hoverboard: THREE.Mesh;
   jetpackFlameLeft: THREE.Mesh;
   jetpackFlameRight: THREE.Mesh;
@@ -22,91 +23,229 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
   const bodyGroup = new THREE.Group();
   root.add(bodyGroup);
 
-  const shirtColor = isInspector ? "#1e3a8a" : "#38bdf8";
-  const pantsColor = isInspector ? "#0f172a" : "#2563eb";
-  const skinColor = "#fbbf24";
+  const jacketColor = isInspector ? "#1e3a8a" : "#0ea5e9";
+  const jacketTrim = isInspector ? "#facc15" : "#f97316";
+  const pantsColor = isInspector ? "#0f172a" : "#1d4ed8";
+  const shoeColor = isInspector ? "#f8fafc" : "#ef4444";
+  const skinColor = "#f59e0b";
+  const hairColor = isInspector ? "#475569" : "#1e1b4b";
 
-  const torso = new THREE.Mesh(
-    new THREE.BoxGeometry(0.85, 0.95, 0.5),
-    new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.45 })
+  // Pelvis / Belt
+  const belt = new THREE.Mesh(
+    new THREE.BoxGeometry(0.76, 0.2, 0.44),
+    new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.5 })
   );
-  torso.position.y = 1.25;
+  belt.position.y = 0.86;
+  bodyGroup.add(belt);
+
+  // Stylized Hoodie / Torso
+  const torso = new THREE.Mesh(
+    new THREE.BoxGeometry(0.84, 0.86, 0.48),
+    new THREE.MeshStandardMaterial({ color: jacketColor, roughness: 0.4 })
+  );
+  torso.position.y = 1.35;
   bodyGroup.add(torso);
 
-  const head = new THREE.Mesh(
-    new THREE.BoxGeometry(0.68, 0.68, 0.68),
-    new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.4 })
+  // Jacket front stripe / zipper detail
+  const chestStripe = new THREE.Mesh(
+    new THREE.BoxGeometry(0.16, 0.82, 0.5),
+    new THREE.MeshStandardMaterial({ color: jacketTrim, roughness: 0.35 })
   );
-  head.position.y = 2.1;
-  bodyGroup.add(head);
+  chestStripe.position.set(0, 1.35, 0.01);
+  bodyGroup.add(chestStripe);
 
+  // Hoodie collar
+  const collar = new THREE.Mesh(
+    new THREE.BoxGeometry(0.7, 0.16, 0.52),
+    new THREE.MeshStandardMaterial({ color: jacketTrim, roughness: 0.4 })
+  );
+  collar.position.set(0, 1.8, 0);
+  bodyGroup.add(collar);
+
+  // Head Group (Head + Hair/Cap + Headphones)
+  const headGroup = new THREE.Group();
+  headGroup.position.set(0, 1.88, 0);
+  bodyGroup.add(headGroup);
+
+  const head = new THREE.Mesh(
+    new THREE.BoxGeometry(0.66, 0.66, 0.64),
+    new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.42 })
+  );
+  head.position.y = 0.34;
+  headGroup.add(head);
+
+  // Eyes
+  const eyeGeo = new THREE.BoxGeometry(0.11, 0.1, 0.05);
+  const eyeMat = new THREE.MeshBasicMaterial({ color: "#0f172a" });
+  const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+  leftEye.position.set(-0.15, 0.38, -0.33);
+  headGroup.add(leftEye);
+
+  const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+  rightEye.position.set(0.15, 0.38, -0.33);
+  headGroup.add(rightEye);
+
+  // Cap / Hair
   if (isInspector) {
-    const cap = new THREE.Mesh(
-      new THREE.BoxGeometry(0.76, 0.22, 0.78),
+    const capBrim = new THREE.Mesh(
+      new THREE.BoxGeometry(0.74, 0.08, 0.86),
       new THREE.MeshStandardMaterial({ color: "#facc15" })
     );
-    cap.position.y = 2.48;
-    bodyGroup.add(cap);
+    capBrim.position.set(0, 0.65, -0.08);
+    headGroup.add(capBrim);
+
+    const capTop = new THREE.Mesh(
+      new THREE.BoxGeometry(0.7, 0.24, 0.7),
+      new THREE.MeshStandardMaterial({ color: "#eab308" })
+    );
+    capTop.position.set(0, 0.76, 0);
+    headGroup.add(capTop);
+  } else {
+    const hairTop = new THREE.Mesh(
+      new THREE.BoxGeometry(0.7, 0.22, 0.68),
+      new THREE.MeshStandardMaterial({ color: hairColor })
+    );
+    hairTop.position.set(0, 0.72, 0.02);
+    headGroup.add(hairTop);
+
+    const hairSpike = new THREE.Mesh(
+      new THREE.BoxGeometry(0.56, 0.16, 0.35),
+      new THREE.MeshStandardMaterial({ color: "#f97316" })
+    );
+    hairSpike.position.set(0, 0.84, -0.06);
+    headGroup.add(hairSpike);
+
+    // Street headphones
+    const earCupGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.12, 12);
+    earCupGeo.rotateZ(Math.PI / 2);
+    const earCupMat = new THREE.MeshStandardMaterial({ color: "#22c55e" });
+
+    const leftCup = new THREE.Mesh(earCupGeo, earCupMat);
+    leftCup.position.set(-0.38, 0.36, 0);
+    headGroup.add(leftCup);
+
+    const rightCup = new THREE.Mesh(earCupGeo, earCupMat);
+    rightCup.position.set(0.38, 0.36, 0);
+    headGroup.add(rightCup);
   }
 
-  const limbGeo = new THREE.BoxGeometry(0.26, 0.72, 0.28);
-  const armMat = new THREE.MeshStandardMaterial({ color: skinColor });
-  const legMat = new THREE.MeshStandardMaterial({ color: pantsColor });
+  // Arms with shoulder pivots
+  const createArm = (side: -1 | 1) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(side * 0.54, 1.66, 0);
 
-  const leftArm = new THREE.Mesh(limbGeo, armMat);
-  leftArm.position.set(-0.6, 1.22, 0);
-  bodyGroup.add(leftArm);
+    const sleeve = new THREE.Mesh(
+      new THREE.BoxGeometry(0.24, 0.38, 0.24),
+      new THREE.MeshStandardMaterial({ color: jacketColor })
+    );
+    sleeve.position.y = -0.18;
+    pivot.add(sleeve);
 
-  const rightArm = new THREE.Mesh(limbGeo, armMat);
-  rightArm.position.set(0.6, 1.22, 0);
-  bodyGroup.add(rightArm);
+    const forearm = new THREE.Mesh(
+      new THREE.BoxGeometry(0.21, 0.32, 0.21),
+      new THREE.MeshStandardMaterial({ color: skinColor })
+    );
+    forearm.position.y = -0.5;
+    pivot.add(forearm);
 
-  const leftLeg = new THREE.Mesh(limbGeo, legMat);
-  leftLeg.position.set(-0.24, 0.45, 0);
-  bodyGroup.add(leftLeg);
+    return pivot;
+  };
 
-  const rightLeg = new THREE.Mesh(limbGeo, legMat);
-  rightLeg.position.set(0.24, 0.45, 0);
-  bodyGroup.add(rightLeg);
+  const leftArmPivot = createArm(-1);
+  const rightArmPivot = createArm(1);
+  bodyGroup.add(leftArmPivot);
+  bodyGroup.add(rightArmPivot);
 
+  // Legs + Sneakers with hip pivots
+  const createLeg = (side: -1 | 1) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(side * 0.22, 0.82, 0);
+
+    const leg = new THREE.Mesh(
+      new THREE.BoxGeometry(0.26, 0.64, 0.28),
+      new THREE.MeshStandardMaterial({ color: pantsColor })
+    );
+    leg.position.y = -0.32;
+    pivot.add(leg);
+
+    const shoe = new THREE.Mesh(
+      new THREE.BoxGeometry(0.3, 0.2, 0.44),
+      new THREE.MeshStandardMaterial({ color: shoeColor, roughness: 0.35 })
+    );
+    shoe.position.set(0, -0.7, -0.07);
+    pivot.add(shoe);
+
+    return pivot;
+  };
+
+  const leftLegPivot = createLeg(-1);
+  const rightLegPivot = createLeg(1);
+  bodyGroup.add(leftLegPivot);
+  bodyGroup.add(rightLegPivot);
+
+  // Hoverboard
   const hoverboard = new THREE.Mesh(
-    new THREE.BoxGeometry(0.75, 0.14, 1.75),
+    new THREE.BoxGeometry(0.78, 0.14, 1.8),
     new THREE.MeshStandardMaterial({
       color: "#f97316",
       emissive: "#ea580c",
-      emissiveIntensity: 0.35,
+      emissiveIntensity: 0.4,
     })
   );
-  hoverboard.position.set(0, 0.12, 0);
+  hoverboard.position.set(0, 0.08, 0);
   hoverboard.visible = false;
   root.add(hoverboard);
 
+  // Jetpack flames
   const flameGeo = new THREE.ConeGeometry(0.16, 0.65, 10);
   flameGeo.rotateX(Math.PI);
   const flameMat = new THREE.MeshBasicMaterial({ color: "#fb923c" });
 
   const jetpackFlameLeft = new THREE.Mesh(flameGeo, flameMat);
-  jetpackFlameLeft.position.set(-0.22, 0.95, 0.34);
+  jetpackFlameLeft.position.set(-0.22, 1.05, 0.34);
   jetpackFlameLeft.visible = false;
   bodyGroup.add(jetpackFlameLeft);
 
   const jetpackFlameRight = new THREE.Mesh(flameGeo, flameMat);
-  jetpackFlameRight.position.set(0.22, 0.95, 0.34);
+  jetpackFlameRight.position.set(0.22, 1.05, 0.34);
   jetpackFlameRight.visible = false;
   bodyGroup.add(jetpackFlameRight);
 
   return {
     root,
     bodyGroup,
-    head,
-    leftArm,
-    rightArm,
-    leftLeg,
-    rightLeg,
+    headGroup,
+    leftArmPivot,
+    rightArmPivot,
+    leftLegPivot,
+    rightLegPivot,
     hoverboard,
     jetpackFlameLeft,
     jetpackFlameRight,
   };
+}
+
+// Optional external .glb model loader (if public/models/runner.glb exists)
+export function tryLoadExternalCharacterModel(
+  rig: RunnerRig,
+  modelUrl = "./models/runner.glb"
+): void {
+  const loader = new GLTFLoader();
+  loader.load(
+    modelUrl,
+    (gltf) => {
+      while (rig.bodyGroup.children.length > 0) {
+        rig.bodyGroup.remove(rig.bodyGroup.children[0]);
+      }
+      const model = gltf.scene;
+      model.scale.set(1.1, 1.1, 1.1);
+      rig.bodyGroup.add(model);
+    },
+    undefined,
+    () => {
+      // Keep stylized built-in character if no external .glb model is present
+    }
+  );
 }
 
 export function addSubwayEnvironment(scene: THREE.Scene): void {
@@ -191,7 +330,7 @@ export function createScenerySegment(zPos: number): THREE.Group {
   return group;
 }
 
-export function createTrainMesh(length = 9.5, height = 2.65): THREE.Group {
+export function createTrainMesh(length = 9.5, height = 2.05): THREE.Group {
   const train = new THREE.Group();
 
   const body = new THREE.Mesh(
