@@ -38,9 +38,6 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Generate 115 MB asset bundle
-        run: npm run assets:110mb
-
       - name: Build web app
         run: npm run build
 
@@ -51,25 +48,13 @@ jobs:
             npx cap init "Rail Dash" "com.raildash.game" --web-dir dist
             npx cap add android
           fi
-          npx cap copy android
+          npx cap sync android
 
       - name: Build Debug APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
-
-      - name: Verify APK size (>= 110 MB)
-        run: |
-          APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
-          ls -lh "$APK_PATH"
-          SIZE_BYTES=$(stat -c%s "$APK_PATH")
-          MIN_BYTES=$((110 * 1024 * 1024))
-          echo "APK size in bytes: $SIZE_BYTES (Minimum required: $MIN_BYTES)"
-          if [ "$SIZE_BYTES" -lt "$MIN_BYTES" ]; then
-            echo "ERROR: APK is smaller than 110 MB!"
-            exit 1
-          fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
