@@ -2,8 +2,11 @@ export type GameState = "playing" | "gameover";
 
 export type PowerUpType = "magnet" | "jetpack" | "hoverboard";
 
+export type ObstacleKind = "train" | "barrier";
+
 export interface TrainObstacle {
   id: number;
+  kind: ObstacleKind;
   lane: number;
   z: number;
   length: number;
