@@ -19,6 +19,7 @@ import {
   LANES,
   LANE_WIDTH,
   RunnerRig,
+  tryLoadExternalCharacterModel,
 } from "./worldBuilder";
 
 export interface HudSnapshot {
@@ -82,7 +83,7 @@ export class RunnerEngine {
       0.1,
       180
     );
-    this.camera.position.set(0, 4.8, 8.8);
+    this.camera.position.set(0, 5.4, 10.2);
     this.camera.lookAt(0, 1.5, -5);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -108,9 +109,10 @@ export class RunnerEngine {
     this.player = createRunnerCharacter(false);
     this.player.root.position.set(0, 0, 0);
     this.scene.add(this.player.root);
+    tryLoadExternalCharacterModel(this.player, "./models/runner.glb");
 
     this.inspector = createRunnerCharacter(true);
-    this.inspector.root.position.set(0, 0, 3.2);
+    this.inspector.root.position.set(0, 0, 1.8);
     this.scene.add(this.inspector.root);
 
     this.input = new InputController(container, (action) =>
@@ -150,7 +152,7 @@ export class RunnerEngine {
       this.isSliding = false;
       this.slideTimer = 0;
       this.player.bodyGroup.scale.y = 1;
-      this.vy = 12;
+      this.vy = 14.5;
       this.sound.playJump();
     } else if (
       action === "slide" &&
@@ -191,7 +193,7 @@ export class RunnerEngine {
 
     if (this.activePowerUp !== "jetpack" && Math.random() < 0.68) {
       const length = 9.5;
-      const height = 2.65;
+      const height = 2.05;
       const mesh = createTrainMesh(length, height);
       mesh.position.set(lane * LANE_WIDTH, 0, zPos);
       this.scene.add(mesh);
@@ -245,18 +247,21 @@ export class RunnerEngine {
   }
 
   private animateRig(rig: RunnerRig, dt: number, flying: boolean) {
-    this.runCycle += dt * (this.speed * 0.75);
-    const swing = flying ? 0.35 : Math.sin(this.runCycle) * 0.65;
+    this.runCycle += dt * (this.speed * 0.82);
+    const swing = flying ? 0.35 : Math.sin(this.runCycle) * 0.72;
 
-    rig.leftArm.rotation.x = swing;
-    rig.rightArm.rotation.x = -swing;
-    rig.leftLeg.rotation.x = flying ? -0.25 : -swing;
-    rig.rightLeg.rotation.x = flying ? -0.25 : swing;
+    rig.leftArmPivot.rotation.x = swing;
+    rig.rightArmPivot.rotation.x = -swing;
+    rig.leftLegPivot.rotation.x = flying ? -0.28 : -swing;
+    rig.rightLegPivot.rotation.x = flying ? -0.28 : swing;
+    rig.headGroup.rotation.x = flying ? -0.15 : Math.abs(Math.sin(this.runCycle)) * 0.06;
+    rig.bodyGroup.position.y = flying ? 0.08 : Math.abs(Math.cos(this.runCycle)) * 0.07;
   }
 
   private updatePlayerAndInspector(dt: number) {
-    this.player.root.position.x +=
-      (this.targetX - this.player.root.position.x) * Math.min(1, dt * 16);
+    const laneDiff = this.targetX - this.player.root.position.x;
+    this.player.root.position.x += laneDiff * Math.min(1, dt * 20);
+    this.player.bodyGroup.rotation.z = -laneDiff * 0.14;
 
     if (this.activePowerUp) {
       this.powerUpTimer -= dt;
@@ -275,7 +280,7 @@ export class RunnerEngine {
       this.player.jetpackFlameRight.scale.set(1, flicker, 1);
     } else if (this.isJumping) {
       this.player.root.position.y += this.vy * dt;
-      this.vy -= 29 * dt;
+      this.vy -= 28 * dt;
 
       if (this.player.root.position.y <= 0) {
         this.player.root.position.y = 0;
@@ -305,15 +310,15 @@ export class RunnerEngine {
       this.stumbleTimer -= dt;
     }
 
-    const desiredInspectorZ = this.stumbleTimer > 0 ? 1.35 : 3.4;
+    const desiredInspectorZ = this.stumbleTimer > 0 ? 1.15 : 1.8;
     this.inspector.root.position.x +=
       (this.player.root.position.x - this.inspector.root.position.x) *
-      Math.min(1, dt * 10);
+      Math.min(1, dt * 12);
     this.inspector.root.position.z +=
       (desiredInspectorZ - this.inspector.root.position.z) * Math.min(1, dt * 6);
     this.inspector.root.position.y = Math.max(
       0,
-      this.player.root.position.y * 0.5
+      this.player.root.position.y * 0.45
     );
     this.animateRig(this.inspector, dt, false);
   }
@@ -331,7 +336,7 @@ export class RunnerEngine {
 
     const playerX = this.player.root.position.x;
     const playerY = this.player.root.position.y;
-    const playerBottom = playerY;
+    const playerBottom = playerY + 0.15;
     const playerTop = playerY + (this.isSliding ? 1.0 : 1.95);
 
     for (let i = this.trains.length - 1; i >= 0; i--) {
@@ -340,9 +345,9 @@ export class RunnerEngine {
       t.mesh.position.z = t.z;
 
       if (this.activePowerUp !== "jetpack") {
-        const withinX = Math.abs(playerX - t.mesh.position.x) < 1.32;
-        const withinZ = Math.abs(t.z) < 0.45 + t.length / 2;
-        const withinY = playerBottom < t.height && playerTop > 0.08;
+        const withinX = Math.abs(playerX - t.mesh.position.x) < 1.05;
+        const withinZ = Math.abs(t.z) < 0.35 + t.length / 2;
+        const withinY = playerBottom < t.height && playerTop > 0.15;
 
         if (withinX && withinZ && withinY) {
           if (this.activePowerUp === "hoverboard") {
@@ -494,7 +499,8 @@ export class RunnerEngine {
     this.targetX = 0;
     this.player.root.position.set(0, 0, 0);
     this.player.bodyGroup.scale.set(1, 1, 1);
-    this.inspector.root.position.set(0, 0, 3.4);
+    this.player.bodyGroup.rotation.z = 0;
+    this.inspector.root.position.set(0, 0, 1.8);
 
     this.vy = 0;
     this.isJumping = false;
@@ -519,4 +525,4 @@ export class RunnerEngine {
     }
     this.renderer.dispose();
   }
-                                             }
+  }
