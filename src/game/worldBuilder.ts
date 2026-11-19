@@ -30,7 +30,6 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
   const skinColor = "#f59e0b";
   const hairColor = isInspector ? "#475569" : "#1e1b4b";
 
-  // Pelvis / Belt
   const belt = new THREE.Mesh(
     new THREE.BoxGeometry(0.76, 0.2, 0.44),
     new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.5 })
@@ -38,7 +37,6 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
   belt.position.y = 0.86;
   bodyGroup.add(belt);
 
-  // Stylized Hoodie / Torso
   const torso = new THREE.Mesh(
     new THREE.BoxGeometry(0.84, 0.86, 0.48),
     new THREE.MeshStandardMaterial({ color: jacketColor, roughness: 0.4 })
@@ -46,7 +44,6 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
   torso.position.y = 1.35;
   bodyGroup.add(torso);
 
-  // Jacket front stripe / zipper detail
   const chestStripe = new THREE.Mesh(
     new THREE.BoxGeometry(0.16, 0.82, 0.5),
     new THREE.MeshStandardMaterial({ color: jacketTrim, roughness: 0.35 })
@@ -54,7 +51,6 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
   chestStripe.position.set(0, 1.35, 0.01);
   bodyGroup.add(chestStripe);
 
-  // Hoodie collar
   const collar = new THREE.Mesh(
     new THREE.BoxGeometry(0.7, 0.16, 0.52),
     new THREE.MeshStandardMaterial({ color: jacketTrim, roughness: 0.4 })
@@ -62,7 +58,6 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
   collar.position.set(0, 1.8, 0);
   bodyGroup.add(collar);
 
-  // Head Group (Head + Hair/Cap + Headphones)
   const headGroup = new THREE.Group();
   headGroup.position.set(0, 1.88, 0);
   bodyGroup.add(headGroup);
@@ -74,7 +69,6 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
   head.position.y = 0.34;
   headGroup.add(head);
 
-  // Eyes
   const eyeGeo = new THREE.BoxGeometry(0.11, 0.1, 0.05);
   const eyeMat = new THREE.MeshBasicMaterial({ color: "#0f172a" });
   const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
@@ -85,7 +79,6 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
   rightEye.position.set(0.15, 0.38, -0.33);
   headGroup.add(rightEye);
 
-  // Cap / Hair
   if (isInspector) {
     const capBrim = new THREE.Mesh(
       new THREE.BoxGeometry(0.74, 0.08, 0.86),
@@ -115,7 +108,6 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
     hairSpike.position.set(0, 0.84, -0.06);
     headGroup.add(hairSpike);
 
-    // Street headphones
     const earCupGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.12, 12);
     earCupGeo.rotateZ(Math.PI / 2);
     const earCupMat = new THREE.MeshStandardMaterial({ color: "#22c55e" });
@@ -129,7 +121,6 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
     headGroup.add(rightCup);
   }
 
-  // Arms with shoulder pivots
   const createArm = (side: -1 | 1) => {
     const pivot = new THREE.Group();
     pivot.position.set(side * 0.54, 1.66, 0);
@@ -156,7 +147,6 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
   bodyGroup.add(leftArmPivot);
   bodyGroup.add(rightArmPivot);
 
-  // Legs + Sneakers with hip pivots
   const createLeg = (side: -1 | 1) => {
     const pivot = new THREE.Group();
     pivot.position.set(side * 0.22, 0.82, 0);
@@ -183,7 +173,6 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
   bodyGroup.add(leftLegPivot);
   bodyGroup.add(rightLegPivot);
 
-  // Hoverboard
   const hoverboard = new THREE.Mesh(
     new THREE.BoxGeometry(0.78, 0.14, 1.8),
     new THREE.MeshStandardMaterial({
@@ -196,7 +185,6 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
   hoverboard.visible = false;
   root.add(hoverboard);
 
-  // Jetpack flames
   const flameGeo = new THREE.ConeGeometry(0.16, 0.65, 10);
   flameGeo.rotateX(Math.PI);
   const flameMat = new THREE.MeshBasicMaterial({ color: "#fb923c" });
@@ -225,7 +213,6 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
   };
 }
 
-// Optional external .glb model loader (if public/models/runner.glb exists)
 export function tryLoadExternalCharacterModel(
   rig: RunnerRig,
   modelUrl = "./models/runner.glb"
@@ -330,7 +317,7 @@ export function createScenerySegment(zPos: number): THREE.Group {
   return group;
 }
 
-export function createTrainMesh(length = 9.5, height = 2.05): THREE.Group {
+export function createTrainMesh(length = 10.5, height = 1.65): THREE.Group {
   const train = new THREE.Group();
 
   const body = new THREE.Mesh(
@@ -341,27 +328,58 @@ export function createTrainMesh(length = 9.5, height = 2.05): THREE.Group {
   train.add(body);
 
   const roof = new THREE.Mesh(
-    new THREE.BoxGeometry(1.92, 0.18, length * 0.96),
+    new THREE.BoxGeometry(1.94, 0.16, length * 0.98),
     new THREE.MeshStandardMaterial({ color: "#e2e8f0" })
   );
-  roof.position.y = height + 0.06;
+  roof.position.y = height + 0.04;
   train.add(roof);
 
   const stripe = new THREE.Mesh(
-    new THREE.BoxGeometry(1.9, 0.25, length * 0.98),
+    new THREE.BoxGeometry(1.9, 0.22, length * 0.98),
     new THREE.MeshStandardMaterial({ color: "#facc15" })
   );
-  stripe.position.y = height * 0.68;
+  stripe.position.y = height * 0.65;
   train.add(stripe);
 
   const frontLight = new THREE.Mesh(
-    new THREE.BoxGeometry(0.35, 0.25, 0.12),
+    new THREE.BoxGeometry(0.35, 0.22, 0.12),
     new THREE.MeshBasicMaterial({ color: "#fef08a" })
   );
-  frontLight.position.set(0, 0.9, length / 2 + 0.04);
+  frontLight.position.set(0, 0.75, length / 2 + 0.04);
   train.add(frontLight);
 
   return train;
+}
+
+export function createBarrierMesh(height = 1.05): THREE.Group {
+  const barrier = new THREE.Group();
+
+  const beam = new THREE.Mesh(
+    new THREE.BoxGeometry(1.8, 0.32, 0.32),
+    new THREE.MeshStandardMaterial({ color: "#f97316", roughness: 0.4 })
+  );
+  beam.position.y = height - 0.16;
+  barrier.add(beam);
+
+  const stripe = new THREE.Mesh(
+    new THREE.BoxGeometry(1.84, 0.12, 0.36),
+    new THREE.MeshBasicMaterial({ color: "#fef08a" })
+  );
+  stripe.position.y = height - 0.16;
+  barrier.add(stripe);
+
+  const postGeo = new THREE.BoxGeometry(0.16, height, 0.2);
+  const postMat = new THREE.MeshStandardMaterial({ color: "#334155" });
+
+  const leftPost = new THREE.Mesh(postGeo, postMat);
+  leftPost.position.set(-0.72, height / 2, 0);
+  barrier.add(leftPost);
+
+  const rightPost = new THREE.Mesh(postGeo, postMat);
+  rightPost.position.set(0.72, height / 2, 0);
+  barrier.add(rightPost);
+
+  return barrier;
 }
 
 export function createCoinMesh(): THREE.Mesh {
