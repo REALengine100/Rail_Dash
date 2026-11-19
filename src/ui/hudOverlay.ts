@@ -9,6 +9,7 @@ export class HudOverlay {
   private root: HTMLDivElement;
   private scoreEl: HTMLSpanElement;
   private coinsEl: HTMLSpanElement;
+  private powerUpBadge: HTMLDivElement;
   private muteBtn: HTMLButtonElement;
   private gameOverModal: HTMLDivElement;
   private finalScoreEl: HTMLParagraphElement;
@@ -34,7 +35,7 @@ export class HudOverlay {
     statsBox.style.gap = "10px";
 
     const scoreBadge = document.createElement("div");
-    scoreBadge.style.background = "rgba(15, 23, 42, 0.75)";
+    scoreBadge.style.background = "rgba(15, 23, 42, 0.78)";
     scoreBadge.style.border = "1px solid rgba(148, 163, 184, 0.25)";
     scoreBadge.style.borderRadius = "12px";
     scoreBadge.style.padding = "8px 12px";
@@ -45,7 +46,7 @@ export class HudOverlay {
     scoreBadge.appendChild(this.scoreEl);
 
     const coinBadge = document.createElement("div");
-    coinBadge.style.background = "rgba(15, 23, 42, 0.75)";
+    coinBadge.style.background = "rgba(15, 23, 42, 0.78)";
     coinBadge.style.border = "1px solid rgba(250, 204, 21, 0.35)";
     coinBadge.style.borderRadius = "12px";
     coinBadge.style.padding = "8px 12px";
@@ -79,6 +80,19 @@ export class HudOverlay {
     topBar.appendChild(statsBox);
     topBar.appendChild(this.muteBtn);
     this.root.appendChild(topBar);
+
+    this.powerUpBadge = document.createElement("div");
+    this.powerUpBadge.style.display = "none";
+    this.powerUpBadge.style.margin = "0 16px";
+    this.powerUpBadge.style.width = "fit-content";
+    this.powerUpBadge.style.background = "rgba(15, 23, 42, 0.85)";
+    this.powerUpBadge.style.border = "1px solid rgba(56, 189, 248, 0.5)";
+    this.powerUpBadge.style.borderRadius = "12px";
+    this.powerUpBadge.style.padding = "6px 12px";
+    this.powerUpBadge.style.fontSize = "13px";
+    this.powerUpBadge.style.fontWeight = "800";
+    this.powerUpBadge.style.color = "#38bdf8";
+    this.root.appendChild(this.powerUpBadge);
 
     this.gameOverModal = document.createElement("div");
     this.gameOverModal.style.position = "fixed";
@@ -141,6 +155,14 @@ export class HudOverlay {
   public update(hud: HudSnapshot): void {
     this.scoreEl.textContent = String(hud.score);
     this.coinsEl.textContent = String(hud.coins);
+
+    if (hud.activePowerUp && hud.state === "playing") {
+      const label = hud.activePowerUp.toUpperCase();
+      this.powerUpBadge.textContent = `${label}: ${hud.powerUpSecondsLeft}s`;
+      this.powerUpBadge.style.display = "block";
+    } else {
+      this.powerUpBadge.style.display = "none";
+    }
 
     if (hud.state === "gameover") {
       this.finalScoreEl.textContent = `Final Score: ${hud.score}`;
