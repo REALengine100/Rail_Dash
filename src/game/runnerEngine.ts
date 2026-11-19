@@ -11,6 +11,7 @@ import {
 } from "./types";
 import {
   addSubwayEnvironment,
+  createBarrierMesh,
   createCoinMesh,
   createPowerUpMesh,
   createRunnerCharacter,
@@ -44,7 +45,8 @@ export class RunnerEngine {
   private targetX = 0;
 
   private vy = 0;
-  private isJumping = false;
+  private groundY = 0;
+  private isGrounded = true;
   private isSliding = false;
   private slideTimer = 0;
   private runCycle = 0;
@@ -143,22 +145,20 @@ export class RunnerEngine {
     } else if (action === "right") {
       this.currentLaneIndex = Math.min(2, this.currentLaneIndex + 1);
       this.targetX = LANES[this.currentLaneIndex] * LANE_WIDTH;
-    } else if (
-      action === "jump" &&
-      !this.isJumping &&
-      this.activePowerUp !== "jetpack"
-    ) {
-      this.isJumping = true;
-      this.isSliding = false;
-      this.slideTimer = 0;
-      this.player.bodyGroup.scale.y = 1;
-      this.vy = 14.5;
-      this.sound.playJump();
-    } else if (
-      action === "slide" &&
-      !this.isJumping &&
-      this.activePowerUp !== "jetpack"
-    ) {
+    } else if (action === "jump" && this.activePowerUp !== "jetpack") {
+      if (this.isGrounded) {
+        this.isGrounded = false;
+        this.isSliding = false;
+        this.slideTimer = 0;
+        this.player.bodyGroup.scale.y = 1;
+        this.vy = 13.5;
+        this.sound.playJump();
+      }
+    } else if (action === "slide" && this.activePowerUp !== "jetpack") {
+      if (!this.isGrounded) {
+        // Subway Surfers fast-fall when swiping down mid-air
+        this.vy = -22;
+      }
       this.isSliding = true;
       this.slideTimer = 0.65;
       this.player.bodyGroup.scale.y = 0.52;
@@ -191,21 +191,41 @@ export class RunnerEngine {
     const lane = LANES[Math.floor(Math.random() * LANES.length)];
     const zPos = -78;
 
-    if (this.activePowerUp !== "jetpack" && Math.random() < 0.68) {
-      const length = 9.5;
-      const height = 2.05;
-      const mesh = createTrainMesh(length, height);
-      mesh.position.set(lane * LANE_WIDTH, 0, zPos);
-      this.scene.add(mesh);
+    if (this.activePowerUp !== "jetpack" && Math.random() < 0.72) {
+      const spawnTrain = Math.random() < 0.65;
+      if (spawnTrain) {
+        const length = 10.5;
+        const height = 1.65;
+        const mesh = createTrainMesh(length, height);
+        mesh.position.set(lane * LANE_WIDTH, 0, zPos);
+        this.scene.add(mesh);
 
-      this.trains.push({
-        id: this.nextId++,
-        lane,
-        z: zPos,
-        length,
-        height,
-        mesh,
-      });
+        this.trains.push({
+          id: this.nextId++,
+          kind: "train",
+          lane,
+          z: zPos,
+          length,
+          height,
+          mesh,
+        });
+      } else {
+        const length = 0.5;
+        const height = 1.05;
+        const mesh = createBarrierMesh(height);
+        mesh.position.set(lane * LANE_WIDTH, 0, zPos);
+        this.scene.add(mesh);
+
+        this.trains.push({
+          id: this.nextId++,
+          kind: "barrier",
+          lane,
+          z: zPos,
+          length,
+          height,
+          mesh,
+        });
+      }
     }
 
     const coinLane = LANES[Math.floor(Math.random() * LANES.length)];
@@ -227,7 +247,7 @@ export class RunnerEngine {
       this.coinItems.push(coinItem);
     }
 
-    if (Math.random() < 0.24) {
+    if (Math.random() < 0.25) {
       const types: PowerUpType[] = ["magnet", "jetpack", "hoverboard"];
       const pType = types[Math.floor(Math.random() * types.length)];
       const pLane = LANES[Math.floor(Math.random() * LANES.length)];
@@ -254,8 +274,12 @@ export class RunnerEngine {
     rig.rightArmPivot.rotation.x = -swing;
     rig.leftLegPivot.rotation.x = flying ? -0.28 : -swing;
     rig.rightLegPivot.rotation.x = flying ? -0.28 : swing;
-    rig.headGroup.rotation.x = flying ? -0.15 : Math.abs(Math.sin(this.runCycle)) * 0.06;
-    rig.bodyGroup.position.y = flying ? 0.08 : Math.abs(Math.cos(this.runCycle)) * 0.07;
+    rig.headGroup.rotation.x = flying
+      ? -0.15
+      : Math.abs(Math.sin(this.runCycle)) * 0.06;
+    rig.bodyGroup.position.y = flying
+      ? 0.08
+      : Math.abs(Math.cos(this.runCycle)) * 0.07;
   }
 
   private updatePlayerAndInspector(dt: number) {
@@ -271,25 +295,27 @@ export class RunnerEngine {
     }
 
     if (this.activePowerUp === "jetpack") {
-      this.isJumping = false;
+      this.groundY = 0;
+      this.isGrounded = false;
       this.vy = 0;
       this.player.root.position.y +=
         (4.2 - this.player.root.position.y) * Math.min(1, dt * 8);
       const flicker = 0.85 + Math.random() * 0.45;
       this.player.jetpackFlameLeft.scale.set(1, flicker, 1);
       this.player.jetpackFlameRight.scale.set(1, flicker, 1);
-    } else if (this.isJumping) {
-      this.player.root.position.y += this.vy * dt;
-      this.vy -= 28 * dt;
-
-      if (this.player.root.position.y <= 0) {
-        this.player.root.position.y = 0;
-        this.vy = 0;
-        this.isJumping = false;
-      }
     } else {
-      this.player.root.position.y +=
-        (0 - this.player.root.position.y) * Math.min(1, dt * 14);
+      if (!this.isGrounded) {
+        this.player.root.position.y += this.vy * dt;
+        this.vy -= 28 * dt;
+      }
+
+      if (this.player.root.position.y <= this.groundY) {
+        this.player.root.position.y = this.groundY;
+        this.vy = 0;
+        this.isGrounded = true;
+      } else if (this.player.root.position.y > this.groundY + 0.05) {
+        this.isGrounded = false;
+      }
     }
 
     if (this.isSliding && this.activePowerUp !== "jetpack") {
@@ -303,7 +329,7 @@ export class RunnerEngine {
     this.animateRig(
       this.player,
       dt,
-      this.activePowerUp === "jetpack" || this.isJumping
+      this.activePowerUp === "jetpack" || !this.isGrounded
     );
 
     if (this.stumbleTimer > 0) {
@@ -336,8 +362,10 @@ export class RunnerEngine {
 
     const playerX = this.player.root.position.x;
     const playerY = this.player.root.position.y;
-    const playerBottom = playerY + 0.15;
+    const playerBottom = playerY;
     const playerTop = playerY + (this.isSliding ? 1.0 : 1.95);
+
+    let supportHeight = 0;
 
     for (let i = this.trains.length - 1; i >= 0; i--) {
       const t = this.trains[i];
@@ -345,22 +373,30 @@ export class RunnerEngine {
       t.mesh.position.z = t.z;
 
       if (this.activePowerUp !== "jetpack") {
-        const withinX = Math.abs(playerX - t.mesh.position.x) < 1.05;
+        const withinX = Math.abs(playerX - t.mesh.position.x) < 1.02;
         const withinZ = Math.abs(t.z) < 0.35 + t.length / 2;
-        const withinY = playerBottom < t.height && playerTop > 0.15;
 
-        if (withinX && withinZ && withinY) {
-          if (this.activePowerUp === "hoverboard") {
-            this.clearPowerUp();
-            this.stumbleTimer = 2.0;
-            this.scene.remove(t.mesh);
-            this.trains.splice(i, 1);
-            continue;
-          } else {
-            this.state = "gameover";
-            this.sound.playGameOver();
-            this.emitHud();
-            return;
+        if (withinX && withinZ) {
+          // Run on top of train roof if player is above/landing on it
+          if (
+            t.kind === "train" &&
+            playerBottom >= t.height - 0.32 &&
+            this.vy <= 0
+          ) {
+            supportHeight = Math.max(supportHeight, t.height);
+          } else if (playerBottom < t.height - 0.15 && playerTop > 0.15) {
+            if (this.activePowerUp === "hoverboard") {
+              this.clearPowerUp();
+              this.stumbleTimer = 2.0;
+              this.scene.remove(t.mesh);
+              this.trains.splice(i, 1);
+              continue;
+            } else {
+              this.state = "gameover";
+              this.sound.playGameOver();
+              this.emitHud();
+              return;
+            }
           }
         }
       }
@@ -368,6 +404,20 @@ export class RunnerEngine {
       if (t.z > 14) {
         this.scene.remove(t.mesh);
         this.trains.splice(i, 1);
+      }
+    }
+
+    if (this.activePowerUp !== "jetpack") {
+      if (supportHeight > 0) {
+        this.groundY = supportHeight;
+        if (this.player.root.position.y < supportHeight) {
+          this.player.root.position.y = supportHeight;
+          this.vy = 0;
+          this.isGrounded = true;
+        }
+      } else if (this.groundY > 0) {
+        this.groundY = 0;
+        this.isGrounded = false;
       }
     }
 
@@ -493,6 +543,7 @@ export class RunnerEngine {
 
     this.clearPowerUp();
     this.stumbleTimer = 0;
+    this.groundY = 0;
 
     this.state = "playing";
     this.currentLaneIndex = 1;
@@ -503,7 +554,7 @@ export class RunnerEngine {
     this.inspector.root.position.set(0, 0, 1.8);
 
     this.vy = 0;
-    this.isJumping = false;
+    this.isGrounded = true;
     this.isSliding = false;
     this.slideTimer = 0;
     this.speed = 17;
@@ -525,4 +576,4 @@ export class RunnerEngine {
     }
     this.renderer.dispose();
   }
-  }
+      }
