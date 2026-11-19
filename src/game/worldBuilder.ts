@@ -18,42 +18,143 @@ export interface RunnerRig {
   jetpackFlameRight: THREE.Mesh;
 }
 
+function makeGroundTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    ctx.fillStyle = "#334155";
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Cobblestone / track bed grid
+    ctx.strokeStyle = "#475569";
+    ctx.lineWidth = 4;
+    for (let y = 0; y <= 512; y += 64) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(512, y);
+      ctx.stroke();
+    }
+
+    // Subtle hazard / lane markings
+    ctx.fillStyle = "rgba(250, 204, 21, 0.22)";
+    ctx.fillRect(16, 0, 16, 512);
+    ctx.fillRect(480, 0, 16, 512);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(1, 24);
+  return tex;
+}
+
+function makeTrainSideTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    // Vibrant Subway Surfers style train body
+    ctx.fillStyle = "#f97316";
+    ctx.fillRect(0, 0, 512, 256);
+
+    // Top white band
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(0, 0, 512, 42);
+
+    // Yellow stripe
+    ctx.fillStyle = "#facc15";
+    ctx.fillRect(0, 138, 512, 24);
+
+    // Windows
+    ctx.fillStyle = "#0f172a";
+    for (let x = 36; x < 460; x += 112) {
+      ctx.fillRect(x, 58, 76, 62);
+      ctx.fillStyle = "#38bdf8";
+      ctx.fillRect(x + 6, 64, 64, 48);
+      ctx.fillStyle = "#0f172a";
+    }
+
+    // Street-art tag accent on lower panel
+    ctx.fillStyle = "#ec4899";
+    ctx.fillRect(48, 176, 130, 44);
+    ctx.fillStyle = "#22c55e";
+    ctx.fillRect(204, 176, 110, 44);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  return tex;
+}
+
+function makeWallArtTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    ctx.fillStyle = "#1e293b";
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Colorful street mural blocks
+    ctx.fillStyle = "#0ea5e9";
+    ctx.fillRect(24, 150, 210, 190);
+
+    ctx.fillStyle = "#f43f5e";
+    ctx.fillRect(256, 120, 225, 220);
+
+    ctx.fillStyle = "#facc15";
+    ctx.beginPath();
+    ctx.arc(130, 245, 58, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#a855f7";
+    ctx.beginPath();
+    ctx.arc(365, 230, 64, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(6, 1);
+  return tex;
+}
+
 export function createRunnerCharacter(isInspector = false): RunnerRig {
   const root = new THREE.Group();
   const bodyGroup = new THREE.Group();
   root.add(bodyGroup);
 
-  const jacketColor = isInspector ? "#1e3a8a" : "#0ea5e9";
+  const jacketColor = isInspector ? "#1d4ed8" : "#06b6d4";
   const jacketTrim = isInspector ? "#facc15" : "#f97316";
-  const pantsColor = isInspector ? "#0f172a" : "#1d4ed8";
+  const pantsColor = isInspector ? "#0f172a" : "#2563eb";
   const shoeColor = isInspector ? "#f8fafc" : "#ef4444";
-  const skinColor = "#f59e0b";
+  const skinColor = "#fbbf24";
   const hairColor = isInspector ? "#475569" : "#1e1b4b";
 
   const belt = new THREE.Mesh(
     new THREE.BoxGeometry(0.76, 0.2, 0.44),
-    new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.5 })
+    new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.45 })
   );
   belt.position.y = 0.86;
   bodyGroup.add(belt);
 
   const torso = new THREE.Mesh(
     new THREE.BoxGeometry(0.84, 0.86, 0.48),
-    new THREE.MeshStandardMaterial({ color: jacketColor, roughness: 0.4 })
+    new THREE.MeshStandardMaterial({ color: jacketColor, roughness: 0.35 })
   );
   torso.position.y = 1.35;
   bodyGroup.add(torso);
 
   const chestStripe = new THREE.Mesh(
-    new THREE.BoxGeometry(0.16, 0.82, 0.5),
-    new THREE.MeshStandardMaterial({ color: jacketTrim, roughness: 0.35 })
+    new THREE.BoxGeometry(0.18, 0.82, 0.5),
+    new THREE.MeshStandardMaterial({ color: jacketTrim, roughness: 0.3 })
   );
   chestStripe.position.set(0, 1.35, 0.01);
   bodyGroup.add(chestStripe);
 
   const collar = new THREE.Mesh(
     new THREE.BoxGeometry(0.7, 0.16, 0.52),
-    new THREE.MeshStandardMaterial({ color: jacketTrim, roughness: 0.4 })
+    new THREE.MeshStandardMaterial({ color: jacketTrim, roughness: 0.35 })
   );
   collar.position.set(0, 1.8, 0);
   bodyGroup.add(collar);
@@ -64,7 +165,7 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
 
   const head = new THREE.Mesh(
     new THREE.BoxGeometry(0.66, 0.66, 0.64),
-    new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.42 })
+    new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.38 })
   );
   head.position.y = 0.34;
   headGroup.add(head);
@@ -160,7 +261,7 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
 
     const shoe = new THREE.Mesh(
       new THREE.BoxGeometry(0.3, 0.2, 0.44),
-      new THREE.MeshStandardMaterial({ color: shoeColor, roughness: 0.35 })
+      new THREE.MeshStandardMaterial({ color: shoeColor, roughness: 0.3 })
     );
     shoe.position.set(0, -0.7, -0.07);
     pivot.add(shoe);
@@ -178,7 +279,7 @@ export function createRunnerCharacter(isInspector = false): RunnerRig {
     new THREE.MeshStandardMaterial({
       color: "#f97316",
       emissive: "#ea580c",
-      emissiveIntensity: 0.4,
+      emissiveIntensity: 0.45,
     })
   );
   hoverboard.position.set(0, 0.08, 0);
@@ -236,18 +337,19 @@ export function tryLoadExternalCharacterModel(
 }
 
 export function addSubwayEnvironment(scene: THREE.Scene): void {
-  scene.background = new THREE.Color("#0b132b");
-  scene.fog = new THREE.Fog("#0b132b", 28, 95);
+  scene.background = new THREE.Color("#38bdf8");
+  scene.fog = new THREE.Fog("#7dd3fc", 36, 105);
 
+  const groundTex = makeGroundTexture();
   const ground = new THREE.Mesh(
     new THREE.BoxGeometry(16, 0.5, 130),
-    new THREE.MeshStandardMaterial({ color: "#1c2541", roughness: 0.85 })
+    new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.75 })
   );
   ground.position.set(0, -0.25, -45);
   scene.add(ground);
 
-  const sleeperGeo = new THREE.BoxGeometry(8.5, 0.08, 0.35);
-  const sleeperMat = new THREE.MeshStandardMaterial({ color: "#334155" });
+  const sleeperGeo = new THREE.BoxGeometry(8.6, 0.08, 0.35);
+  const sleeperMat = new THREE.MeshStandardMaterial({ color: "#475569" });
   for (let z = 10; z >= -85; z -= 2.2) {
     const sleeper = new THREE.Mesh(sleeperGeo, sleeperMat);
     sleeper.position.set(0, 0.02, z);
@@ -256,9 +358,9 @@ export function addSubwayEnvironment(scene: THREE.Scene): void {
 
   const railGeo = new THREE.BoxGeometry(0.14, 0.14, 110);
   const railMat = new THREE.MeshStandardMaterial({
-    color: "#cbd5e1",
-    metalness: 0.7,
-    roughness: 0.25,
+    color: "#f1f5f9",
+    metalness: 0.75,
+    roughness: 0.2,
   });
 
   for (const lane of LANES) {
@@ -273,45 +375,62 @@ export function addSubwayEnvironment(scene: THREE.Scene): void {
     scene.add(rightRail);
   }
 
-  const wallGeo = new THREE.BoxGeometry(0.6, 8, 120);
-  const wallMat = new THREE.MeshStandardMaterial({ color: "#16203a" });
+  const wallTex = makeWallArtTexture();
+  const wallGeo = new THREE.BoxGeometry(0.6, 7.5, 120);
+  const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.6 });
 
   const leftWall = new THREE.Mesh(wallGeo, wallMat);
-  leftWall.position.set(-5.8, 3.8, -42);
+  leftWall.position.set(-5.8, 3.6, -42);
   scene.add(leftWall);
 
   const rightWall = new THREE.Mesh(wallGeo, wallMat);
-  rightWall.position.set(5.8, 3.8, -42);
+  rightWall.position.set(5.8, 3.6, -42);
   scene.add(rightWall);
+
+  // Distant colorful city skyline blocks
+  const bldgColors = ["#f472b6", "#34d399", "#fbbf24", "#818cf8", "#fb7185"];
+  for (let i = 0; i < 10; i++) {
+    const side = i % 2 === 0 ? -1 : 1;
+    const h = 10 + (i % 4) * 4.5;
+    const bldg = new THREE.Mesh(
+      new THREE.BoxGeometry(6.5, h, 7),
+      new THREE.MeshStandardMaterial({
+        color: bldgColors[i % bldgColors.length],
+        roughness: 0.6,
+      })
+    );
+    bldg.position.set(side * 11.5, h / 2 - 1, -18 - i * 8.5);
+    scene.add(bldg);
+  }
 }
 
 export function createScenerySegment(zPos: number): THREE.Group {
   const group = new THREE.Group();
   group.position.z = zPos;
 
-  const pillarGeo = new THREE.BoxGeometry(0.55, 6.5, 0.55);
-  const pillarMat = new THREE.MeshStandardMaterial({ color: "#475569" });
+  const pillarGeo = new THREE.BoxGeometry(0.55, 6.2, 0.55);
+  const pillarMat = new THREE.MeshStandardMaterial({ color: "#f8fafc" });
 
   const leftPillar = new THREE.Mesh(pillarGeo, pillarMat);
-  leftPillar.position.set(-5.1, 3.25, 0);
+  leftPillar.position.set(-5.1, 3.1, 0);
   group.add(leftPillar);
 
   const rightPillar = new THREE.Mesh(pillarGeo, pillarMat);
-  rightPillar.position.set(5.1, 3.25, 0);
+  rightPillar.position.set(5.1, 3.1, 0);
   group.add(rightPillar);
 
   const arch = new THREE.Mesh(
     new THREE.BoxGeometry(10.8, 0.35, 0.5),
-    new THREE.MeshStandardMaterial({ color: "#334155" })
+    new THREE.MeshStandardMaterial({ color: "#0284c7" })
   );
-  arch.position.set(0, 6.4, 0);
+  arch.position.set(0, 6.1, 0);
   group.add(arch);
 
   const lamp = new THREE.Mesh(
-    new THREE.BoxGeometry(1.1, 0.14, 0.35),
-    new THREE.MeshBasicMaterial({ color: "#bae6fd" })
+    new THREE.BoxGeometry(1.2, 0.16, 0.36),
+    new THREE.MeshBasicMaterial({ color: "#fef08a" })
   );
-  lamp.position.set(0, 6.18, 0);
+  lamp.position.set(0, 5.88, 0);
   group.add(lamp);
 
   return group;
@@ -319,30 +438,31 @@ export function createScenerySegment(zPos: number): THREE.Group {
 
 export function createTrainMesh(length = 10.5, height = 1.65): THREE.Group {
   const train = new THREE.Group();
+  const sideTex = makeTrainSideTexture();
 
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(1.85, height, length),
-    new THREE.MeshStandardMaterial({ color: "#ef4444", roughness: 0.35 })
+    new THREE.MeshStandardMaterial({ map: sideTex, roughness: 0.35 })
   );
   body.position.y = height / 2;
   train.add(body);
 
   const roof = new THREE.Mesh(
     new THREE.BoxGeometry(1.94, 0.16, length * 0.98),
-    new THREE.MeshStandardMaterial({ color: "#e2e8f0" })
+    new THREE.MeshStandardMaterial({ color: "#ffffff" })
   );
   roof.position.y = height + 0.04;
   train.add(roof);
 
-  const stripe = new THREE.Mesh(
-    new THREE.BoxGeometry(1.9, 0.22, length * 0.98),
-    new THREE.MeshStandardMaterial({ color: "#facc15" })
+  const acUnit = new THREE.Mesh(
+    new THREE.BoxGeometry(1.1, 0.22, length * 0.45),
+    new THREE.MeshStandardMaterial({ color: "#94a3b8" })
   );
-  stripe.position.y = height * 0.65;
-  train.add(stripe);
+  acUnit.position.set(0, height + 0.18, 0);
+  train.add(acUnit);
 
   const frontLight = new THREE.Mesh(
-    new THREE.BoxGeometry(0.35, 0.22, 0.12),
+    new THREE.BoxGeometry(0.42, 0.24, 0.12),
     new THREE.MeshBasicMaterial({ color: "#fef08a" })
   );
   frontLight.position.set(0, 0.75, length / 2 + 0.04);
@@ -387,10 +507,10 @@ export function createCoinMesh(): THREE.Mesh {
   geo.rotateZ(Math.PI / 2);
   const mat = new THREE.MeshStandardMaterial({
     color: "#facc15",
-    emissive: "#ca8a04",
-    emissiveIntensity: 0.25,
-    metalness: 0.65,
-    roughness: 0.25,
+    emissive: "#eab308",
+    emissiveIntensity: 0.35,
+    metalness: 0.7,
+    roughness: 0.2,
   });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.y = 1.1;
@@ -411,8 +531,8 @@ export function createPowerUpMesh(type: PowerUpType): THREE.Group {
     new THREE.MeshStandardMaterial({
       color: colorMap[type],
       emissive: colorMap[type],
-      emissiveIntensity: 0.35,
-      roughness: 0.25,
+      emissiveIntensity: 0.45,
+      roughness: 0.2,
     })
   );
   orb.position.y = 1.25;
@@ -420,7 +540,7 @@ export function createPowerUpMesh(type: PowerUpType): THREE.Group {
 
   const ring = new THREE.Mesh(
     new THREE.TorusGeometry(0.75, 0.06, 10, 24),
-    new THREE.MeshBasicMaterial({ color: "#f8fafc" })
+    new THREE.MeshBasicMaterial({ color: "#ffffff" })
   );
   ring.position.y = 1.25;
   group.add(ring);
