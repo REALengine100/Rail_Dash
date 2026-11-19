@@ -1,26 +1,40 @@
 import * as THREE from "three";
 import { SoundEngine } from "../audio/soundEngine";
 import { InputController, MoveAction } from "./inputController";
-import { CoinItem, GameState, TrainObstacle } from "./types";
 import {
-  addTrackLanes,
+  CoinItem,
+  GameState,
+  PowerUpItem,
+  PowerUpType,
+  SceneryProp,
+  TrainObstacle,
+} from "./types";
+import {
+  addSubwayEnvironment,
   createCoinMesh,
+  createPowerUpMesh,
+  createRunnerCharacter,
+  createScenerySegment,
   createTrainMesh,
   LANES,
   LANE_WIDTH,
+  RunnerRig,
 } from "./worldBuilder";
 
 export interface HudSnapshot {
   state: GameState;
   score: number;
   coins: number;
+  activePowerUp: PowerUpType | null;
+  powerUpSecondsLeft: number;
 }
 
 export class RunnerEngine {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
-  private player: THREE.Mesh;
+  private player: RunnerRig;
+  private inspector: RunnerRig;
   private sound: SoundEngine;
   private input: InputController;
 
@@ -32,15 +46,22 @@ export class RunnerEngine {
   private isJumping = false;
   private isSliding = false;
   private slideTimer = 0;
+  private runCycle = 0;
 
-  private speed = 16;
+  private activePowerUp: PowerUpType | null = null;
+  private powerUpTimer = 0;
+  private stumbleTimer = 0;
+
+  private speed = 17;
   private score = 0;
   private coins = 0;
 
   private trains: TrainObstacle[] = [];
   private coinItems: CoinItem[] = [];
+  private powerUps: PowerUpItem[] = [];
+  private scenery: SceneryProp[] = [];
   private nextId = 1;
-  private spawnTimer = 0;
+  private spawnTimer = 0.4;
 
   private animFrameId: number | null = null;
   private lastTime = performance.now();
@@ -55,44 +76,42 @@ export class RunnerEngine {
     this.onHudUpdate = onHudUpdate;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color("#0f172a");
-
     this.camera = new THREE.PerspectiveCamera(
-      60,
+      62,
       container.clientWidth / Math.max(1, container.clientHeight),
       0.1,
-      200
+      180
     );
-    this.camera.position.set(0, 4.5, 8.5);
-    this.camera.lookAt(0, 1.4, -4);
+    this.camera.position.set(0, 4.8, 8.8);
+    this.camera.lookAt(0, 1.5, -5);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     container.appendChild(this.renderer.domElement);
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.85);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.9);
     this.scene.add(ambient);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.25);
-    dirLight.position.set(6, 12, 8);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.35);
+    dirLight.position.set(7, 14, 9);
     this.scene.add(dirLight);
 
-    const ground = new THREE.Mesh(
-      new THREE.BoxGeometry(10, 0.4, 110),
-      new THREE.MeshStandardMaterial({ color: "#1e293b" })
-    );
-    ground.position.set(0, -0.2, -35);
-    this.scene.add(ground);
+    addSubwayEnvironment(this.scene);
 
-    addTrackLanes(this.scene);
+    for (let z = 12; z >= -84; z -= 16) {
+      const seg = createScenerySegment(z);
+      this.scene.add(seg);
+      this.scenery.push({ z, mesh: seg });
+    }
 
-    this.player = new THREE.Mesh(
-      new THREE.BoxGeometry(1.05, 1.8, 1.05),
-      new THREE.MeshStandardMaterial({ color: "#38bdf8" })
-    );
-    this.player.position.set(0, 0.9, 0);
-    this.scene.add(this.player);
+    this.player = createRunnerCharacter(false);
+    this.player.root.position.set(0, 0, 0);
+    this.scene.add(this.player.root);
+
+    this.inspector = createRunnerCharacter(true);
+    this.inspector.root.position.set(0, 0, 3.2);
+    this.scene.add(this.inspector.root);
 
     this.input = new InputController(container, (action) =>
       this.handleAction(action)
@@ -122,30 +141,59 @@ export class RunnerEngine {
     } else if (action === "right") {
       this.currentLaneIndex = Math.min(2, this.currentLaneIndex + 1);
       this.targetX = LANES[this.currentLaneIndex] * LANE_WIDTH;
-    } else if (action === "jump" && !this.isJumping) {
+    } else if (
+      action === "jump" &&
+      !this.isJumping &&
+      this.activePowerUp !== "jetpack"
+    ) {
       this.isJumping = true;
       this.isSliding = false;
       this.slideTimer = 0;
-      this.player.scale.y = 1;
-      this.vy = 11.5;
+      this.player.bodyGroup.scale.y = 1;
+      this.vy = 12;
       this.sound.playJump();
-    } else if (action === "slide" && !this.isJumping) {
+    } else if (
+      action === "slide" &&
+      !this.isJumping &&
+      this.activePowerUp !== "jetpack"
+    ) {
       this.isSliding = true;
       this.slideTimer = 0.65;
-      this.player.scale.y = 0.5;
-      this.player.position.y = 0.45;
+      this.player.bodyGroup.scale.y = 0.52;
+      this.sound.playSlide();
     }
+  }
+
+  private activatePowerUp(type: PowerUpType) {
+    this.activePowerUp = type;
+    this.powerUpTimer = type === "jetpack" ? 5.5 : 8.0;
+    this.isSliding = false;
+    this.player.bodyGroup.scale.y = 1;
+    this.sound.playPowerUp();
+
+    this.player.hoverboard.visible = type === "hoverboard";
+    const isJetpack = type === "jetpack";
+    this.player.jetpackFlameLeft.visible = isJetpack;
+    this.player.jetpackFlameRight.visible = isJetpack;
+  }
+
+  private clearPowerUp() {
+    this.activePowerUp = null;
+    this.powerUpTimer = 0;
+    this.player.hoverboard.visible = false;
+    this.player.jetpackFlameLeft.visible = false;
+    this.player.jetpackFlameRight.visible = false;
   }
 
   private spawnWave() {
     const lane = LANES[Math.floor(Math.random() * LANES.length)];
-    const zPos = -75;
+    const zPos = -78;
 
-    if (Math.random() < 0.65) {
-      const length = 9;
-      const height = 2.6;
+    if (this.activePowerUp !== "jetpack" && Math.random() < 0.68) {
+      const length = 9.5;
+      const height = 2.65;
       const mesh = createTrainMesh(length, height);
-      mesh.position.set(lane * LANE_WIDTH, height / 2, zPos);
+      mesh.position.set(lane * LANE_WIDTH, 0, zPos);
       this.scene.add(mesh);
 
       this.trains.push({
@@ -159,71 +207,157 @@ export class RunnerEngine {
     }
 
     const coinLane = LANES[Math.floor(Math.random() * LANES.length)];
-    for (let i = 0; i < 3; i++) {
+    const coinY = this.activePowerUp === "jetpack" ? 4.2 : 1.1;
+    for (let i = 0; i < 4; i++) {
       const coinZ = zPos - i * 2.2;
       const mesh = createCoinMesh();
-      mesh.position.set(coinLane * LANE_WIDTH, 1.1, coinZ);
+      mesh.position.set(coinLane * LANE_WIDTH, coinY, coinZ);
       this.scene.add(mesh);
 
-      this.coinItems.push({
+      const coinItem: CoinItem = {
         id: this.nextId++,
         lane: coinLane,
         z: coinZ,
+        y: coinY,
         collected: false,
         mesh,
+      };
+      this.coinItems.push(coinItem);
+    }
+
+    if (Math.random() < 0.24) {
+      const types: PowerUpType[] = ["magnet", "jetpack", "hoverboard"];
+      const pType = types[Math.floor(Math.random() * types.length)];
+      const pLane = LANES[Math.floor(Math.random() * LANES.length)];
+      const pMesh = createPowerUpMesh(pType);
+      pMesh.position.set(pLane * LANE_WIDTH, 0.2, zPos - 5);
+      this.scene.add(pMesh);
+
+      this.powerUps.push({
+        id: this.nextId++,
+        type: pType,
+        lane: pLane,
+        z: zPos - 5,
+        collected: false,
+        mesh: pMesh,
       });
     }
   }
 
-  private updatePlayer(dt: number) {
-    this.player.position.x +=
-      (this.targetX - this.player.position.x) * Math.min(1, dt * 16);
+  private animateRig(rig: RunnerRig, dt: number, flying: boolean) {
+    this.runCycle += dt * (this.speed * 0.75);
+    const swing = flying ? 0.35 : Math.sin(this.runCycle) * 0.65;
 
-    if (this.isJumping) {
-      this.player.position.y += this.vy * dt;
-      this.vy -= 28 * dt;
+    rig.leftArm.rotation.x = swing;
+    rig.rightArm.rotation.x = -swing;
+    rig.leftLeg.rotation.x = flying ? -0.25 : -swing;
+    rig.rightLeg.rotation.x = flying ? -0.25 : swing;
+  }
 
-      if (this.player.position.y <= 0.9) {
-        this.player.position.y = 0.9;
+  private updatePlayerAndInspector(dt: number) {
+    this.player.root.position.x +=
+      (this.targetX - this.player.root.position.x) * Math.min(1, dt * 16);
+
+    if (this.activePowerUp) {
+      this.powerUpTimer -= dt;
+      if (this.powerUpTimer <= 0) {
+        this.clearPowerUp();
+      }
+    }
+
+    if (this.activePowerUp === "jetpack") {
+      this.isJumping = false;
+      this.vy = 0;
+      this.player.root.position.y +=
+        (4.2 - this.player.root.position.y) * Math.min(1, dt * 8);
+      const flicker = 0.85 + Math.random() * 0.45;
+      this.player.jetpackFlameLeft.scale.set(1, flicker, 1);
+      this.player.jetpackFlameRight.scale.set(1, flicker, 1);
+    } else if (this.isJumping) {
+      this.player.root.position.y += this.vy * dt;
+      this.vy -= 29 * dt;
+
+      if (this.player.root.position.y <= 0) {
+        this.player.root.position.y = 0;
         this.vy = 0;
         this.isJumping = false;
       }
+    } else {
+      this.player.root.position.y +=
+        (0 - this.player.root.position.y) * Math.min(1, dt * 14);
     }
 
-    if (this.isSliding) {
+    if (this.isSliding && this.activePowerUp !== "jetpack") {
       this.slideTimer -= dt;
       if (this.slideTimer <= 0) {
         this.isSliding = false;
-        this.player.scale.y = 1;
-        this.player.position.y = 0.9;
+        this.player.bodyGroup.scale.y = 1;
       }
     }
+
+    this.animateRig(
+      this.player,
+      dt,
+      this.activePowerUp === "jetpack" || this.isJumping
+    );
+
+    if (this.stumbleTimer > 0) {
+      this.stumbleTimer -= dt;
+    }
+
+    const desiredInspectorZ = this.stumbleTimer > 0 ? 1.35 : 3.4;
+    this.inspector.root.position.x +=
+      (this.player.root.position.x - this.inspector.root.position.x) *
+      Math.min(1, dt * 10);
+    this.inspector.root.position.z +=
+      (desiredInspectorZ - this.inspector.root.position.z) * Math.min(1, dt * 6);
+    this.inspector.root.position.y = Math.max(
+      0,
+      this.player.root.position.y * 0.5
+    );
+    this.animateRig(this.inspector, dt, false);
   }
 
-  private updateObstaclesAndCoins(dt: number) {
+  private updateSceneryAndEntities(dt: number) {
     const moveDist = this.speed * dt;
-    const playerHalfW = 0.45;
-    const playerHalfD = 0.45;
-    const playerBottom = this.player.position.y - (this.isSliding ? 0.45 : 0.9);
-    const playerTop = this.player.position.y + (this.isSliding ? 0.45 : 0.9);
+
+    for (const seg of this.scenery) {
+      seg.z += moveDist;
+      if (seg.z > 16) {
+        seg.z -= 96;
+      }
+      seg.mesh.position.z = seg.z;
+    }
+
+    const playerX = this.player.root.position.x;
+    const playerY = this.player.root.position.y;
+    const playerBottom = playerY;
+    const playerTop = playerY + (this.isSliding ? 1.0 : 1.95);
 
     for (let i = this.trains.length - 1; i >= 0; i--) {
       const t = this.trains[i];
       t.z += moveDist;
       t.mesh.position.z = t.z;
 
-      const trainHalfW = 0.9;
-      const trainHalfD = t.length / 2;
-      const withinX =
-        Math.abs(this.player.position.x - t.mesh.position.x) <
-        playerHalfW + trainHalfW;
-      const withinZ = Math.abs(t.z) < playerHalfD + trainHalfD;
-      const withinY = playerBottom < t.height && playerTop > 0.05;
+      if (this.activePowerUp !== "jetpack") {
+        const withinX = Math.abs(playerX - t.mesh.position.x) < 1.32;
+        const withinZ = Math.abs(t.z) < 0.45 + t.length / 2;
+        const withinY = playerBottom < t.height && playerTop > 0.08;
 
-      if (withinX && withinZ && withinY) {
-        this.state = "gameover";
-        this.emitHud();
-        return;
+        if (withinX && withinZ && withinY) {
+          if (this.activePowerUp === "hoverboard") {
+            this.clearPowerUp();
+            this.stumbleTimer = 2.0;
+            this.scene.remove(t.mesh);
+            this.trains.splice(i, 1);
+            continue;
+          } else {
+            this.state = "gameover";
+            this.sound.playGameOver();
+            this.emitHud();
+            return;
+          }
+        }
       }
 
       if (t.z > 14) {
@@ -232,25 +366,67 @@ export class RunnerEngine {
       }
     }
 
+    for (let i = this.powerUps.length - 1; i >= 0; i--) {
+      const p = this.powerUps[i];
+      p.z += moveDist;
+      p.mesh.position.z = p.z;
+      p.mesh.rotation.y += 3 * dt;
+
+      if (!p.collected) {
+        const dx = Math.abs(playerX - p.mesh.position.x);
+        const dz = Math.abs(p.z);
+        const dy = Math.abs(playerY + 1.0 - 1.25);
+
+        if (dx < 1.15 && dz < 1.15 && dy < 1.6) {
+          p.collected = true;
+          this.activatePowerUp(p.type);
+          this.scene.remove(p.mesh);
+          this.powerUps.splice(i, 1);
+          continue;
+        }
+      }
+
+      if (p.z > 14) {
+        this.scene.remove(p.mesh);
+        this.powerUps.splice(i, 1);
+      }
+    }
+
     for (let i = this.coinItems.length - 1; i >= 0; i--) {
       const c = this.coinItems[i];
       c.z += moveDist;
+
+      if (
+        !c.collected &&
+        this.activePowerUp === "magnet" &&
+        c.z > -28 &&
+        c.z < 12
+      ) {
+        c.mesh.position.x +=
+          (playerX - c.mesh.position.x) * Math.min(1, dt * 12);
+        c.mesh.position.y +=
+          (playerY + 1.1 - c.mesh.position.y) * Math.min(1, dt * 12);
+      } else {
+        c.mesh.position.x +=
+          (c.lane * LANE_WIDTH - c.mesh.position.x) * Math.min(1, dt * 10);
+        c.mesh.position.y = c.y;
+      }
+
       c.mesh.position.z = c.z;
-      c.mesh.rotation.x += 4 * dt;
+      c.mesh.rotation.x += 4.5 * dt;
 
       if (!c.collected) {
-        const dx = Math.abs(this.player.position.x - c.mesh.position.x);
+        const dx = Math.abs(playerX - c.mesh.position.x);
         const dz = Math.abs(c.z);
-        const dy = Math.abs(this.player.position.y - c.mesh.position.y);
+        const dy = Math.abs(playerY + 1.1 - c.mesh.position.y);
 
-        if (dx < 1.0 && dz < 1.0 && dy < 1.3) {
+        if (dx < 1.15 && dz < 1.15 && dy < 1.5) {
           c.collected = true;
           this.coins += 1;
           this.score += 10;
           this.sound.playCoin();
           this.scene.remove(c.mesh);
           this.coinItems.splice(i, 1);
-          this.emitHud();
           continue;
         }
       }
@@ -268,6 +444,8 @@ export class RunnerEngine {
         state: this.state,
         score: Math.floor(this.score),
         coins: this.coins,
+        activePowerUp: this.activePowerUp,
+        powerUpSecondsLeft: Math.max(0, Math.ceil(this.powerUpTimer)),
       });
     }
   }
@@ -278,17 +456,18 @@ export class RunnerEngine {
       this.lastTime = now;
 
       if (this.state === "playing") {
-        this.speed = Math.min(34, this.speed + 0.25 * dt);
-        this.score += this.speed * dt;
+        const mult = this.activePowerUp === "jetpack" ? 1.35 : 1;
+        this.speed = Math.min(35, this.speed + 0.25 * dt);
+        this.score += this.speed * dt * mult;
 
         this.spawnTimer -= dt;
         if (this.spawnTimer <= 0) {
           this.spawnWave();
-          this.spawnTimer = Math.max(0.85, 1.55 - (this.speed - 16) * 0.03);
+          this.spawnTimer = Math.max(0.8, 1.5 - (this.speed - 17) * 0.03);
         }
 
-        this.updatePlayer(dt);
-        this.updateObstaclesAndCoins(dt);
+        this.updatePlayerAndInspector(dt);
+        this.updateSceneryAndEntities(dt);
         this.emitHud();
       }
 
@@ -302,19 +481,26 @@ export class RunnerEngine {
   public restart() {
     for (const t of this.trains) this.scene.remove(t.mesh);
     for (const c of this.coinItems) this.scene.remove(c.mesh);
+    for (const p of this.powerUps) this.scene.remove(p.mesh);
     this.trains = [];
     this.coinItems = [];
+    this.powerUps = [];
+
+    this.clearPowerUp();
+    this.stumbleTimer = 0;
 
     this.state = "playing";
     this.currentLaneIndex = 1;
     this.targetX = 0;
-    this.player.position.set(0, 0.9, 0);
-    this.player.scale.set(1, 1, 1);
+    this.player.root.position.set(0, 0, 0);
+    this.player.bodyGroup.scale.set(1, 1, 1);
+    this.inspector.root.position.set(0, 0, 3.4);
+
     this.vy = 0;
     this.isJumping = false;
     this.isSliding = false;
     this.slideTimer = 0;
-    this.speed = 16;
+    this.speed = 17;
     this.score = 0;
     this.coins = 0;
     this.spawnTimer = 0.4;
@@ -333,4 +519,4 @@ export class RunnerEngine {
     }
     this.renderer.dispose();
   }
-}
+                                             }
